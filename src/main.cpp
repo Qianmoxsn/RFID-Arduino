@@ -48,7 +48,7 @@ void task3loop() {
   int button_state = digitalRead(7);
   Serial.println(button_state);
   if (button_state == HIGH) {
-    digitalWrite(LED_BUILTIN, HIGH);
+    task2loop();
   }
   else {
     digitalWrite(LED_BUILTIN, LOW);
