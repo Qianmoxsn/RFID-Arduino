@@ -2,6 +2,7 @@
 
 #include <SPI.h>
 #include <MFRC522.h>
+#include <SevSeg.h>
 
 #define SS_PIN 10
 #define RST_PIN 9
@@ -9,6 +10,9 @@
 // Instance of the class and key
 MFRC522 rfid(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;
+
+//Instantiate a segment controller object
+SevSeg sevseg;
 
 /* For task 1_2 */
 #define NEW_UID {0x11, 0x45, 0x14, 0xAA}
@@ -128,6 +132,7 @@ void compute_shirt_counter() {
   buffer[0] = shirt_counter;
 
   Serial.println();
+  sevseg.setNumber(shirt_counter, 0);
 }
 
 /**
@@ -166,7 +171,7 @@ void authenticate_key_B() {
 void read_sector(byte size) {
   // Read data from the block
   Serial.print(F("Reading data from sector ")); Serial.print(sector); Serial.println(F(" ..."));
-  
+
   Serial.println(F(" Sector|Block|                        DATA                        [Access ]"));
   rfid.PICC_DumpMifareClassicSectorToSerial(&(rfid.uid), &key, sector);
 
@@ -185,14 +190,14 @@ void write_block() {
   // Write data to the block
   Serial.print(F("Writing to block ")); Serial.print(blockAddr); Serial.println(F(":"));
   dump_byte_array(dataBlock, 16); Serial.println();
-  
+
   MFRC522::StatusCode status = (MFRC522::StatusCode)rfid.MIFARE_Write(blockAddr, dataBlock, 16);
   if (status != MFRC522::STATUS_OK) {
     Serial.print(F("MIFARE_Write() failed: "));
     Serial.println(rfid.GetStatusCodeName(status));
   }
   Serial.print(F("Writting data to sector ")); Serial.print(sector); Serial.println(F("..."));
- Serial.println(F(" Sector|Block|                        DATA                        [Access ]"));  rfid.PICC_DumpMifareClassicSectorToSerial(&(rfid.uid), &key, sector);
+  Serial.println(F(" Sector|Block|                        DATA                        [Access ]"));  rfid.PICC_DumpMifareClassicSectorToSerial(&(rfid.uid), &key, sector);
 }
 
 /**
@@ -200,7 +205,7 @@ void write_block() {
 */
 void check_block() {
   // Check if the data is written correctly
-  
+
 }
 
 void task1setup() {
@@ -329,8 +334,20 @@ void task2setup() {
   SPI.begin(); // Init SPI bus
   rfid.PCD_Init(); // Init MFRC522 
 
-  delay(100);
+  /**Setup for SEG*/
+  byte numDigits = 4;
+  byte digitPins[] = { 2, 3, 4, 5 };
+  byte segmentPins[] = { 6,19,17,15,14,7,18,16 };
+  bool resistorsOnSegments = false; // 'false' means resistors are on digit pins
+  byte hardwareConfig = COMMON_CATHODE; // See README.md for options
+  bool updateWithDelays = false; // Default 'false' is Recommended
+  bool leadingZeros = false; // Use 'true' if you'd like to keep the leading zeros
+  bool disableDecPoint = false; // Use 'true' if your decimal point doesn't exist or isn't connected. Then, you only need to specify 7 segmentPins[]
 
+  sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments,
+    updateWithDelays, leadingZeros, disableDecPoint);
+  sevseg.setBrightness(10);
+  // delay(100);
   // Write the default key to the key buffer(FF FF FF FF FF FF)
   for (byte i = 0; i < 6; i++) {
     key.keyByte[i] = 0xFF;
@@ -342,6 +359,7 @@ void task2setup() {
   Serial.println(F("====================LOOP===================="));
 }
 void task2loop() {
+  sevseg.blank();
   // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
   if (!rfid.PICC_IsNewCardPresent())
     return;
@@ -391,7 +409,11 @@ void task2loop() {
   rfid.PICC_HaltA();
   // Stop encryption on PCD
   rfid.PCD_StopCrypto1();
-
+  unsigned long prMillis = millis();
+  while (millis() - prMillis < 1500) //wait for 2-second
+  {
+    sevseg.refreshDisplay();  //keep refreshing display until 2-sec has elapsed
+  }
   Serial.println(F("--------------------"));
 }
 
